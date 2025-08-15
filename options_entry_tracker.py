@@ -1,7 +1,7 @@
 """
 Options Entry Tracker — Streamlit App (Pro Extended Version)
 
-Updated to handle FutureWarnings and deprecated float conversion, ensuring safe numeric handling.
+Updated to include all signal functions and prevent undefined errors.
 """
 
 from __future__ import annotations
@@ -71,7 +71,23 @@ def signal_trend(row) -> int:
     if macd > macd_sig: score +=1
     return score
 
-# Other signal functions remain unchanged
+def signal_breakout(row) -> int:
+    try:
+        return int(row['Close'] >= row['DonHigh20'])
+    except Exception:
+        return 0
+
+def signal_pullback(row) -> int:
+    try:
+        return int(row['Close'] < row['EMA20'] and row['RSI14'] < 50)
+    except Exception:
+        return 0
+
+def signal_meanrev(row) -> int:
+    try:
+        return int(abs(row['Close'] - row['EMA50'])/row['EMA50'] > 0.05)
+    except Exception:
+        return 0
 
 # ---------------------- Add Signals Wrapper
 
