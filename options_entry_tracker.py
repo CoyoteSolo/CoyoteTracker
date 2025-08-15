@@ -150,6 +150,24 @@ def signal_meanrev(row) -> int:
         score = 0
     return score
 
+# ---------------------- Add Signals Wrapper
+
+def add_signals(df: pd.DataFrame) -> pd.DataFrame:
+    """Applies all signal scoring functions to the DataFrame."""
+    df = df.copy()
+    df = df.reset_index(drop=True)
+    for col in ["Close", "EMA20", "EMA50", "EMA200", "RSI14", "MACD", "MACDsig", "DonHigh20"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+    df = df.dropna()
+
+    df["SigTrend"] = df.apply(signal_trend, axis=1)
+    df["SigBreakout"] = df.apply(signal_breakout, axis=1)
+    df["SigPullback"] = df.apply(signal_pullback, axis=1)
+    df["SigMeanRev"] = df.apply(signal_meanrev, axis=1)
+
+    return df
+
 # ---------------------- Volatility & IV Rank (Proxy)
 @st.cache_data(show_spinner=False)
 def realized_vol(df: pd.DataFrame, window: int = 21) -> pd.Series:
