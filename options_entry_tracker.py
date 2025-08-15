@@ -1,7 +1,7 @@
 """
 Options Entry Tracker — Streamlit App (Pro Extended Version)
 
-Updated to display Option Listings in an enhanced, card-style layout for easier readability.
+Updated to handle FutureWarnings and deprecated float conversion, ensuring safe numeric handling.
 """
 
 from __future__ import annotations
@@ -26,6 +26,8 @@ TODAY = dt.date.today()
 
 def safe_float(val, default=np.nan):
     try:
+        if isinstance(val, pd.Series):
+            return float(val.iloc[0])
         return float(val)
     except Exception:
         return default
@@ -122,7 +124,7 @@ def main():
     st.title('Options Entry Tracker (Pro Extended)')
     ticker_input = st.text_input('Enter Stock Ticker','AAPL')
     if ticker_input:
-        df = yf.download(ticker_input, period='6mo', interval='1d')
+        df = yf.download(ticker_input, period='6mo', interval='1d', auto_adjust=True)
         if not df.empty:
             df.reset_index(inplace=True)
             df = compute_indicators(df)
