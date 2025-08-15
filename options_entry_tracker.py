@@ -84,41 +84,71 @@ def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
 
 def signal_trend(row) -> int:
     score = 0
-    if row.Close > row.EMA20: score += 1
-    if row.Close > row.EMA50: score += 1
-    if row.EMA50 > row.EMA200: score += 1
-    if row.RSI14 > 55: score += 1
-    if row.MACD > row.MACDsig: score += 1
+    try:
+        close = float(row["Close"])
+        ema20 = float(row["EMA20"])
+        ema50 = float(row["EMA50"])
+        ema200 = float(row["EMA200"])
+        rsi = float(row["RSI14"])
+        macd = float(row["MACD"])
+        macd_sig = float(row["MACDsig"])
+
+        if close > ema20: score += 1
+        if close > ema50: score += 1
+        if ema50 > ema200: score += 1
+        if rsi > 55: score += 1
+        if macd > macd_sig: score += 1
+    except Exception:
+        score = 0
     return score
 
 def signal_breakout(row) -> int:
     score = 0
-    if row.Close > row.DonHigh20: score += 3
-    if row.RSI14 > 60: score += 1
-    if row.MACD > row.MACDsig: score += 1
+    try:
+        close = float(row["Close"])
+        donhigh = float(row["DonHigh20"])
+        rsi = float(row["RSI14"])
+        macd = float(row["MACD"])
+        macd_sig = float(row["MACDsig"])
+
+        if close > donhigh: score += 3
+        if rsi > 60: score += 1
+        if macd > macd_sig: score += 1
+    except Exception:
+        score = 0
     return score
 
 def signal_pullback(row) -> int:
     score = 0
-    if row.Close > row.EMA50: score += 2
-    if 40 <= row.RSI14 <= 55: score += 2
-    if row.MACD > row.MACDsig: score += 1
+    try:
+        close = float(row["Close"])
+        ema50 = float(row["EMA50"])
+        rsi = float(row["RSI14"])
+        macd = float(row["MACD"])
+        macd_sig = float(row["MACDsig"])
+
+        if close > ema50: score += 2
+        if 40 <= rsi <= 55: score += 2
+        if macd > macd_sig: score += 1
+    except Exception:
+        score = 0
     return score
 
 def signal_meanrev(row) -> int:
     score = 0
-    if row.Close < row.EMA50: score += 1
-    if row.RSI14 < 30: score += 3
-    if row.MACD < row.MACDsig: score += 1
-    return score
+    try:
+        close = float(row["Close"])
+        ema50 = float(row["EMA50"])
+        rsi = float(row["RSI14"])
+        macd = float(row["MACD"])
+        macd_sig = float(row["MACDsig"])
 
-def add_signals(df: pd.DataFrame) -> pd.DataFrame:
-    out = df.copy()
-    out["SigTrend"] = out.apply(signal_trend, axis=1)
-    out["SigBreakout"] = out.apply(signal_breakout, axis=1)
-    out["SigPullback"] = out.apply(signal_pullback, axis=1)
-    out["SigMeanRev"] = out.apply(signal_meanrev, axis=1)
-    return out
+        if close < ema50: score += 1
+        if rsi < 30: score += 3
+        if macd < macd_sig: score += 1
+    except Exception:
+        score = 0
+    return score
 
 # ---------------------- Volatility & IV Rank (Proxy)
 @st.cache_data(show_spinner=False)
