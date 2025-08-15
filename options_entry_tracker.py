@@ -1,19 +1,20 @@
 """
-Options Entry Tracker — Streamlit App (Extended Version)
+Options Entry Tracker — Streamlit App (Pro Extended Version)
 
-Includes: plotting, option evaluation, PDF export, Discord alert features.
+Includes: detailed analysis, chance of profit calculation, real-time volatility rating,
+plotting, option evaluation, PDF export, Discord alerts.
 
 Updated requirements:
 - numpy
 - pandas
 - yfinance
 - streamlit
-- matplotlib (for plotting)
-- fpdf (for PDF export)
-- requests (for Discord webhooks)
-- scipy (for statistical functions)
+- matplotlib
+- fpdf
+- requests
+- scipy
 
-Note: The app should run in a standard Python environment (CPython 3.10+) and not in Pyodide/browser-based environments to avoid errors such as 'micropip not found'.
+Note: Run in standard Python environment (CPython 3.10+). Avoid Pyodide/browser-based environments.
 """
 
 from __future__ import annotations
@@ -65,6 +66,7 @@ def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
     df['DonHigh20'] = df['Close'].rolling(20).max()
     df['MACD'] = df['Close'].ewm(span=12, adjust=False).mean() - df['Close'].ewm(span=26, adjust=False).mean()
     df['MACDsig'] = df['MACD'].ewm(span=9, adjust=False).mean()
+    df['Volatility'] = df['Close'].pct_change().rolling(14).std() * np.sqrt(252)  # annualized volatility
     return df
 
 # ---------------------- Signal Functions
@@ -135,7 +137,15 @@ def add_signals(df: pd.DataFrame) -> pd.DataFrame:
     df["SigMeanRev"] = df.apply(signal_meanrev, axis=1)
     return df
 
-# ---------------------- Plotting, Option Evaluation, PDF Export, Discord Alerts
+# ---------------------- Evaluation Functions
+
+def evaluate_options(df):
+    df['OptionScore'] = df[['SigTrend','SigBreakout','SigPullback','SigMeanRev']].sum(axis=1)
+    df['ChanceOfProfit'] = np.clip(df['OptionScore']*10,0,100)  # example heuristic
+    df['VolatilityRating'] = pd.qcut(df['Volatility'], 3, labels=['Low','Medium','High'])
+    return df
+
+# ---------------------- Plotting, PDF, Discord Alerts
 
 def plot_stock(df, ticker):
     plt.figure(figsize=(10,4))
@@ -148,18 +158,14 @@ def plot_stock(df, ticker):
     plt.ylabel('Price')
     st.pyplot(plt)
 
-def evaluate_options(df):
-    df['OptionScore'] = df[['SigTrend','SigBreakout','SigPullback','SigMeanRev']].sum(axis=1)
-    return df
-
 def export_pdf(df, filename='report.pdf'):
     pdf=FPDF()
     pdf.add_page()
     pdf.set_font('Arial','B',12)
-    pdf.cell(0,10,'Options Tracker Report',0,1,'C')
+    pdf.cell(0,10,'Options Tracker Detailed Report',0,1,'C')
     pdf.ln(5)
     for i,row in df.tail(10).iterrows():
-        pdf.cell(0,8,f"{row['Date'].date()} | Close: {row['Close']:.2f} | Score: {row['OptionScore']}",0,1)
+        pdf.cell(0,8,f"{row['Date'].date()} | Close: {row['Close']:.2f} | Score: {row['OptionScore']} | COP: {row['ChanceOfProfit']}% | Vol: {row['VolatilityRating']}",0,1)
     pdf.output(filename)
 
 def send_discord_alert(message, webhook_url):
@@ -169,7 +175,7 @@ def send_discord_alert(message, webhook_url):
 # ---------------------- Streamlit App
 
 def main():
-    st.title('Options Entry Tracker (Pro)')
+    st.title('Options Entry Tracker (Pro Extended)')
     ticker_input=st.text_input('Enter Stock Ticker','AAPL')
     if ticker_input:
         df=yf.download(ticker_input, period='6mo', interval='1d')
@@ -186,8 +192,9 @@ def main():
 
         webhook_url=st.text_input('Discord Webhook URL')
         if st.button('Send Discord Alert') and webhook_url:
-            latest_score=df['OptionScore'].iloc[-1]
-            send_discord_alert(f'{ticker_input} latest option score: {latest_score}',webhook_url)
+            latest = df.iloc[-1]
+            msg=f"{ticker_input} latest Option Score: {latest['OptionScore']}, COP: {latest['ChanceOfProfit']}%, Vol: {latest['VolatilityRating']}"
+            send_discord_alert(msg,webhook_url)
             st.success('Discord alert sent')
 
 if __name__=='__main__':
