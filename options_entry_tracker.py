@@ -20,8 +20,7 @@ Note: Run in standard Python environment (CPython 3.10+). Avoid Pyodide/browser-
 from __future__ import annotations
 import math
 import datetime as dt
-from dataclasses import dataclass
-from typing import List, Optional
+from typing import List
 
 import numpy as np
 import pandas as pd
@@ -45,8 +44,9 @@ def safe_float(val, default=np.nan):
         return default
 
 def ensure_numeric(df: pd.DataFrame, columns: List[str]) -> pd.DataFrame:
+    df = df.copy()
     for col in columns:
-        if col in df.columns:
+        if col in df.columns and isinstance(df[col], (pd.Series, np.ndarray, list)):
             df[col] = pd.to_numeric(df[col], errors='coerce')
     return df.dropna().reset_index(drop=True)
 
@@ -73,14 +73,8 @@ def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
 
 def signal_trend(row) -> int:
     score = 0
-    close = safe_float(row.get("Close"))
-    ema20 = safe_float(row.get("EMA20"))
-    ema50 = safe_float(row.get("EMA50"))
-    ema200 = safe_float(row.get("EMA200"))
-    rsi = safe_float(row.get("RSI14"))
-    macd = safe_float(row.get("MACD"))
-    macd_sig = safe_float(row.get("MACDsig"))
-    if np.isnan([close, ema20, ema50, ema200, rsi, macd, macd_sig]).any(): return 0
+    close, ema20, ema50, ema200, rsi, macd, macd_sig = [safe_float(row.get(c)) for c in ['Close','EMA20','EMA50','EMA200','RSI14','MACD','MACDsig']]
+    if any(pd.isna([close, ema20, ema50, ema200, rsi, macd, macd_sig])): return 0
     if close > ema20: score +=1
     if close > ema50: score +=1
     if ema50 > ema200: score +=1
@@ -88,14 +82,12 @@ def signal_trend(row) -> int:
     if macd > macd_sig: score +=1
     return score
 
+# Similar safe conversion applied to other signal functions
+
 def signal_breakout(row) -> int:
     score = 0
-    close = safe_float(row.get("Close"))
-    donhigh = safe_float(row.get("DonHigh20"))
-    rsi = safe_float(row.get("RSI14"))
-    macd = safe_float(row.get("MACD"))
-    macd_sig = safe_float(row.get("MACDsig"))
-    if np.isnan([close, donhigh, rsi, macd, macd_sig]).any(): return 0
+    close, donhigh, rsi, macd, macd_sig = [safe_float(row.get(c)) for c in ['Close','DonHigh20','RSI14','MACD','MACDsig']]
+    if any(pd.isna([close, donhigh, rsi, macd, macd_sig])): return 0
     if close > donhigh: score +=3
     if rsi>60: score +=1
     if macd>macd_sig: score +=1
@@ -103,12 +95,8 @@ def signal_breakout(row) -> int:
 
 def signal_pullback(row) -> int:
     score=0
-    close=safe_float(row.get("Close"))
-    ema50=safe_float(row.get("EMA50"))
-    rsi=safe_float(row.get("RSI14"))
-    macd=safe_float(row.get("MACD"))
-    macd_sig=safe_float(row.get("MACDsig"))
-    if np.isnan([close, ema50, rsi, macd, macd_sig]).any(): return 0
+    close, ema50, rsi, macd, macd_sig = [safe_float(row.get(c)) for c in ['Close','EMA50','RSI14','MACD','MACDsig']]
+    if any(pd.isna([close, ema50, rsi, macd, macd_sig])): return 0
     if close>ema50: score+=2
     if 40<=rsi<=55: score+=2
     if macd>macd_sig: score+=1
@@ -116,12 +104,8 @@ def signal_pullback(row) -> int:
 
 def signal_meanrev(row) -> int:
     score=0
-    close=safe_float(row.get("Close"))
-    ema50=safe_float(row.get("EMA50"))
-    rsi=safe_float(row.get("RSI14"))
-    macd=safe_float(row.get("MACD"))
-    macd_sig=safe_float(row.get("MACDsig"))
-    if np.isnan([close, ema50, rsi, macd, macd_sig]).any(): return 0
+    close, ema50, rsi, macd, macd_sig = [safe_float(row.get(c)) for c in ['Close','EMA50','RSI14','MACD','MACDsig']]
+    if any(pd.isna([close, ema50, rsi, macd, macd_sig])): return 0
     if close<ema50: score+=1
     if rsi<30: score+=3
     if macd<macd_sig: score+=1
@@ -130,19 +114,19 @@ def signal_meanrev(row) -> int:
 # ---------------------- Add Signals Wrapper
 
 def add_signals(df: pd.DataFrame) -> pd.DataFrame:
-    df=ensure_numeric(df, ["Close","EMA20","EMA50","EMA200","RSI14","MACD","MACDsig","DonHigh20"])
-    df["SigTrend"] = df.apply(signal_trend, axis=1)
-    df["SigBreakout"] = df.apply(signal_breakout, axis=1)
-    df["SigPullback"] = df.apply(signal_pullback, axis=1)
-    df["SigMeanRev"] = df.apply(signal_meanrev, axis=1)
+    df = ensure_numeric(df, ['Close','EMA20','EMA50','EMA200','RSI14','MACD','MACDsig','DonHigh20'])
+    df['SigTrend'] = df.apply(signal_trend, axis=1)
+    df['SigBreakout'] = df.apply(signal_breakout, axis=1)
+    df['SigPullback'] = df.apply(signal_pullback, axis=1)
+    df['SigMeanRev'] = df.apply(signal_meanrev, axis=1)
     return df
 
 # ---------------------- Evaluation Functions
 
 def evaluate_options(df):
     df['OptionScore'] = df[['SigTrend','SigBreakout','SigPullback','SigMeanRev']].sum(axis=1)
-    df['ChanceOfProfit'] = np.clip(df['OptionScore']*10,0,100)  # example heuristic
-    df['VolatilityRating'] = pd.qcut(df['Volatility'], 3, labels=['Low','Medium','High'])
+    df['ChanceOfProfit'] = np.clip(df['OptionScore']*10,0,100)
+    df['VolatilityRating'] = pd.qcut(df['Volatility'],3,labels=['Low','Medium','High'])
     return df
 
 # ---------------------- Plotting, PDF, Discord Alerts
@@ -164,38 +148,40 @@ def export_pdf(df, filename='report.pdf'):
     pdf.set_font('Arial','B',12)
     pdf.cell(0,10,'Options Tracker Detailed Report',0,1,'C')
     pdf.ln(5)
-    for i,row in df.tail(10).iterrows():
+    for _,row in df.tail(10).iterrows():
         pdf.cell(0,8,f"{row['Date'].date()} | Close: {row['Close']:.2f} | Score: {row['OptionScore']} | COP: {row['ChanceOfProfit']}% | Vol: {row['VolatilityRating']}",0,1)
     pdf.output(filename)
 
 def send_discord_alert(message, webhook_url):
-    payload={'content':message}
-    requests.post(webhook_url,json=payload)
+    if webhook_url:
+        requests.post(webhook_url,json={'content':message})
 
 # ---------------------- Streamlit App
 
 def main():
     st.title('Options Entry Tracker (Pro Extended)')
-    ticker_input=st.text_input('Enter Stock Ticker','AAPL')
+    ticker_input = st.text_input('Enter Stock Ticker','AAPL')
     if ticker_input:
-        df=yf.download(ticker_input, period='6mo', interval='1d')
-        df.reset_index(inplace=True)
-        df=compute_indicators(df)
-        df=add_signals(df)
-        df=evaluate_options(df)
-        st.dataframe(df.tail(20))
-        plot_stock(df,ticker_input)
+        df = yf.download(ticker_input, period='6mo', interval='1d')
+        if not df.empty:
+            df.reset_index(inplace=True)
+            df = compute_indicators(df)
+            df = add_signals(df)
+            df = evaluate_options(df)
+            st.dataframe(df.tail(20))
+            plot_stock(df, ticker_input)
 
-        if st.button('Export PDF'):
-            export_pdf(df)
-            st.success('PDF exported successfully')
+            if st.button('Export PDF'):
+                export_pdf(df)
+                st.success('PDF exported successfully')
 
-        webhook_url=st.text_input('Discord Webhook URL')
-        if st.button('Send Discord Alert') and webhook_url:
-            latest = df.iloc[-1]
-            msg=f"{ticker_input} latest Option Score: {latest['OptionScore']}, COP: {latest['ChanceOfProfit']}%, Vol: {latest['VolatilityRating']}"
-            send_discord_alert(msg,webhook_url)
-            st.success('Discord alert sent')
+            webhook_url = st.text_input('Discord Webhook URL')
+            if st.button('Send Discord Alert') and webhook_url:
+                latest = df.iloc[-1]
+                msg = f"{ticker_input} latest Option Score: {latest['OptionScore']}, COP: {latest['ChanceOfProfit']}%, Vol: {latest['VolatilityRating']}"
+                send_discord_alert(msg, webhook_url)
+                st.success('Discord alert sent')
 
 if __name__=='__main__':
     main()
+
