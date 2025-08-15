@@ -82,81 +82,87 @@ def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
 
 # ---------------------- Signals
 
+def safe_float(val, default=np.nan):
+    try:
+        return float(val)
+    except Exception:
+        return default
+
 def signal_trend(row) -> int:
     score = 0
-    try:
-        close = float(row["Close"])
-        ema20 = float(row["EMA20"])
-        ema50 = float(row["EMA50"])
-        ema200 = float(row["EMA200"])
-        rsi = float(row["RSI14"])
-        macd = float(row["MACD"])
-        macd_sig = float(row["MACDsig"])
+    close = safe_float(row.get("Close"))
+    ema20 = safe_float(row.get("EMA20"))
+    ema50 = safe_float(row.get("EMA50"))
+    ema200 = safe_float(row.get("EMA200"))
+    rsi = safe_float(row.get("RSI14"))
+    macd = safe_float(row.get("MACD"))
+    macd_sig = safe_float(row.get("MACDsig"))
 
-        if close > ema20: score += 1
-        if close > ema50: score += 1
-        if ema50 > ema200: score += 1
-        if rsi > 55: score += 1
-        if macd > macd_sig: score += 1
-    except Exception:
-        score = 0
+    if np.isnan([close, ema20, ema50, ema200, rsi, macd, macd_sig]).any():
+        return 0
+
+    if close > ema20: score += 1
+    if close > ema50: score += 1
+    if ema50 > ema200: score += 1
+    if rsi > 55: score += 1
+    if macd > macd_sig: score += 1
     return score
 
 def signal_breakout(row) -> int:
     score = 0
-    try:
-        close = float(row["Close"])
-        donhigh = float(row["DonHigh20"])
-        rsi = float(row["RSI14"])
-        macd = float(row["MACD"])
-        macd_sig = float(row["MACDsig"])
+    close = safe_float(row.get("Close"))
+    donhigh = safe_float(row.get("DonHigh20"))
+    rsi = safe_float(row.get("RSI14"))
+    macd = safe_float(row.get("MACD"))
+    macd_sig = safe_float(row.get("MACDsig"))
 
-        if close > donhigh: score += 3
-        if rsi > 60: score += 1
-        if macd > macd_sig: score += 1
-    except Exception:
-        score = 0
+    if np.isnan([close, donhigh, rsi, macd, macd_sig]).any():
+        return 0
+
+    if close > donhigh: score += 3
+    if rsi > 60: score += 1
+    if macd > macd_sig: score += 1
     return score
 
 def signal_pullback(row) -> int:
     score = 0
-    try:
-        close = float(row["Close"])
-        ema50 = float(row["EMA50"])
-        rsi = float(row["RSI14"])
-        macd = float(row["MACD"])
-        macd_sig = float(row["MACDsig"])
+    close = safe_float(row.get("Close"))
+    ema50 = safe_float(row.get("EMA50"))
+    rsi = safe_float(row.get("RSI14"))
+    macd = safe_float(row.get("MACD"))
+    macd_sig = safe_float(row.get("MACDsig"))
 
-        if close > ema50: score += 2
-        if 40 <= rsi <= 55: score += 2
-        if macd > macd_sig: score += 1
-    except Exception:
-        score = 0
+    if np.isnan([close, ema50, rsi, macd, macd_sig]).any():
+        return 0
+
+    if close > ema50: score += 2
+    if 40 <= rsi <= 55: score += 2
+    if macd > macd_sig: score += 1
     return score
 
 def signal_meanrev(row) -> int:
     score = 0
-    try:
-        close = float(row["Close"])
-        ema50 = float(row["EMA50"])
-        rsi = float(row["RSI14"])
-        macd = float(row["MACD"])
-        macd_sig = float(row["MACDsig"])
+    close = safe_float(row.get("Close"))
+    ema50 = safe_float(row.get("EMA50"))
+    rsi = safe_float(row.get("RSI14"))
+    macd = safe_float(row.get("MACD"))
+    macd_sig = safe_float(row.get("MACDsig"))
 
-        if close < ema50: score += 1
-        if rsi < 30: score += 3
-        if macd < macd_sig: score += 1
-    except Exception:
-        score = 0
+    if np.isnan([close, ema50, rsi, macd, macd_sig]).any():
+        return 0
+
+    if close < ema50: score += 1
+    if rsi < 30: score += 3
+    if macd < macd_sig: score += 1
     return score
 
 # ---------------------- Add Signals Wrapper
 
 def add_signals(df: pd.DataFrame) -> pd.DataFrame:
-    """Applies all signal scoring functions to the DataFrame."""
     df = df.copy()
     df = df.reset_index(drop=True)
-    for col in ["Close", "EMA20", "EMA50", "EMA200", "RSI14", "MACD", "MACDsig", "DonHigh20"]:
+    numeric_cols = ["Close", "EMA20", "EMA50", "EMA200", "RSI14", "MACD", "MACDsig", "DonHigh20"]
+    for col in numeric_cols:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce')
     df = df.dropna()
