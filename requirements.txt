@@ -6,3 +6,4 @@ matplotlib
 ta
 fpdf
 requests
+scipy
